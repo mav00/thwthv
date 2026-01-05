@@ -76,171 +76,6 @@ function thwthv_update_db_check() {
 add_action( 'admin_init', 'thwthv_update_db_check' );
 
 /**
- * Admin-Menü hinzufügen.
- */
-function thwthv_admin_menu() {
-	add_menu_page(
-		__( 'THV Dienste', 'thwthv' ),
-		__( 'THV Dienste', 'thwthv' ),
-		'manage_options',
-		'thwthv-dienste',
-		'thwthv_render_admin_page',
-		'dashicons-calendar-alt'
-	);
-}
-add_action( 'admin_menu', 'thwthv_admin_menu' );
-
-/**
- * Admin-Seite rendern.
- */
-function thwthv_render_admin_page() {
-	global $wpdb;
-	$table_dienste = $wpdb->prefix . 'thv_dienste';
-	$table_settings = $wpdb->prefix . 'thv_settings';
-
-	// Speichern
-	if ( isset( $_POST['thwthv_admin_add'] ) && check_admin_referer( 'thwthv_admin_save', 'thwthv_admin_nonce' ) ) {
-		$wpdb->insert(
-			$table_dienste,
-			array(
-				'datum'   => sanitize_text_field( $_POST['datum'] ),
-				'uhrzeit' => sanitize_text_field( $_POST['uhrzeit'] ),
-				'ort'     => sanitize_text_field( $_POST['ort'] ),
-			)
-		);
-		echo '<div class="updated"><p>Dienst gespeichert.</p></div>';
-	}
-
-	// Löschen
-	if ( isset( $_GET['action'] ) && 'delete' === $_GET['action'] && isset( $_GET['id'] ) ) {
-		$id = intval( $_GET['id'] );
-		$wpdb->delete( $table_dienste, array( 'id' => $id ) );
-		$wpdb->delete( $wpdb->prefix . 'thv_teilnehmer', array( 'dienst_id' => $id ) );
-		echo '<div class="updated"><p>Dienst gelöscht.</p></div>';
-	}
-
-	// Setting Speichern (Email)
-	if ( isset( $_POST['thwthv_admin_add_email'] ) && check_admin_referer( 'thwthv_admin_save_setting', 'thwthv_admin_setting_nonce' ) ) {
-		if ( is_email( $_POST['new_email'] ) ) {
-			$wpdb->insert( $table_settings, array( 'type' => 'email', 'value' => sanitize_email( $_POST['new_email'] ) ) );
-			echo '<div class="updated"><p>E-Mail Adresse hinzugefügt.</p></div>';
-		}
-	}
-
-	// Setting Speichern (Admin)
-	if ( isset( $_POST['thwthv_admin_add_admin'] ) && check_admin_referer( 'thwthv_admin_save_setting', 'thwthv_admin_setting_nonce' ) ) {
-		$new_admin_id = intval( $_POST['new_admin_id'] );
-		if ( $new_admin_id > 0 ) {
-			$wpdb->insert( $table_settings, array( 'type' => 'admin', 'value' => $new_admin_id ) );
-			echo '<div class="updated"><p>Admin hinzugefügt.</p></div>';
-		}
-	}
-
-	// Setting Löschen
-	if ( isset( $_GET['action'] ) && 'delete_setting' === $_GET['action'] && isset( $_GET['id'] ) ) {
-		$id = intval( $_GET['id'] );
-		$wpdb->delete( $table_settings, array( 'id' => $id ) );
-		echo '<div class="updated"><p>Eintrag gelöscht.</p></div>';
-	}
-
-	$dienste = $wpdb->get_results( "SELECT * FROM $table_dienste ORDER BY datum ASC" );
-	$settings = $wpdb->get_results( "SELECT * FROM $table_settings" );
-	
-	$emails_list = array_filter( $settings, function($s) { return $s->type === 'email'; } );
-	$admins_list = array_filter( $settings, function($s) { return $s->type === 'admin'; } );
-	$all_users   = get_users( array( 'orderby' => 'display_name' ) );
-	?>
-	<div class="wrap">
-		<h1>THV Dienste verwalten</h1>
-		<h2>Neuen Dienst hinzufügen</h2>
-		<form method="post">
-			<?php wp_nonce_field( 'thwthv_admin_save', 'thwthv_admin_nonce' ); ?>
-			<table class="form-table">
-				<tr><th><label for="datum">Datum</label></th><td><input type="date" name="datum" required></td></tr>
-				<tr><th><label for="uhrzeit">Uhrzeit</label></th><td><input type="time" name="uhrzeit" required></td></tr>
-				<tr><th><label for="ort">Ort</label></th><td><input type="text" name="ort" required class="regular-text"></td></tr>
-			</table>
-			<?php submit_button( 'Dienst speichern', 'primary', 'thwthv_admin_add' ); ?>
-		</form>
-		<hr>
-		<h2>Alle Dienste</h2>
-		<table class="widefat fixed striped">
-			<thead><tr><th>Datum</th><th>Uhrzeit</th><th>Ort</th><th>Eintragen</th></tr></thead>
-			<tbody>
-				<?php if ( $dienste ) : foreach ( $dienste as $dienst ) : ?>
-					<tr>
-						<td><?php echo esc_html( date( 'd.m.Y', strtotime( $dienst->datum ) ) ); ?></td>
-						<td><?php echo esc_html( $dienst->uhrzeit ); ?></td>
-						<td><?php echo esc_html( $dienst->ort ); ?></td>
-						<td><a href="?page=thwthv-dienste&action=delete&id=<?php echo $dienst->id; ?>" onclick="return confirm('Löschen?')" style="color:red;">Löschen</a></td>
-					</tr>
-				<?php endforeach; else : ?>
-					<tr><td colspan="4">Keine Dienste gefunden.</td></tr>
-				<?php endif; ?>
-			</tbody>
-		</table>
-
-		<hr>
-		<h2>Einstellungen</h2>
-		
-		<div style="display:flex; gap:40px;">
-			<div style="flex:1;">
-				<h3>Benachrichtigungs-E-Mails</h3>
-				<p>An diese Adressen wird eine E-Mail gesendet, wenn sich jemand einträgt.</p>
-				<form method="post">
-					<?php wp_nonce_field( 'thwthv_admin_save_setting', 'thwthv_admin_setting_nonce' ); ?>
-					<p>
-						<input type="email" name="new_email" placeholder="E-Mail Adresse" required class="regular-text">
-						<?php submit_button( 'E-Mail hinzufügen', 'secondary', 'thwthv_admin_add_email', false ); ?>
-					</p>
-				</form>
-				<ul>
-					<?php if ( $emails_list ) : foreach ( $emails_list as $em ) : ?>
-						<li>
-							<?php echo esc_html( $em->value ); ?>
-							- <a href="?page=thwthv-dienste&action=delete_setting&id=<?php echo $em->id; ?>" onclick="return confirm('Löschen?')" style="color:red;">Löschen</a>
-						</li>
-					<?php endforeach; else : ?>
-						<li>Keine E-Mail Adressen hinterlegt.</li>
-					<?php endif; ?>
-				</ul>
-			</div>
-
-			<div style="flex:1;">
-				<h3>THV Administratoren</h3>
-				<p>Diese Benutzer haben Verwaltungsrechte für THV Dienste (Frontend).</p>
-				<form method="post">
-					<?php wp_nonce_field( 'thwthv_admin_save_setting', 'thwthv_admin_setting_nonce' ); ?>
-					<p>
-						<select name="new_admin_id" required>
-							<option value="">Benutzer auswählen...</option>
-							<?php foreach ( $all_users as $user ) : ?>
-								<option value="<?php echo $user->ID; ?>"><?php echo esc_html( $user->display_name . ' (' . $user->user_login . ')' ); ?></option>
-							<?php endforeach; ?>
-						</select>
-						<?php submit_button( 'Admin hinzufügen', 'secondary', 'thwthv_admin_add_admin', false ); ?>
-					</p>
-				</form>
-				<ul>
-					<?php if ( $admins_list ) : foreach ( $admins_list as $adm ) : 
-						$u = get_userdata( $adm->value );
-						$display = $u ? $u->display_name : 'Unbekannter User (ID ' . $adm->value . ')';
-						?>
-						<li>
-							<?php echo esc_html( $display ); ?>
-							- <a href="?page=thwthv-dienste&action=delete_setting&id=<?php echo $adm->id; ?>" onclick="return confirm('Löschen?')" style="color:red;">Löschen</a>
-						</li>
-					<?php endforeach; else : ?>
-						<li>Keine zusätzlichen Admins hinterlegt.</li>
-					<?php endif; ?>
-				</ul>
-			</div>
-		</div>
-	</div>
-	<?php
-}
-
-/**
  * Prüft, ob der aktuelle Benutzer Admin ist.
  */
 function thwthv_isAdmin() {
@@ -265,6 +100,7 @@ function thwthv_isAdmin() {
  */
 function thwthv_send_notification( $dienst_id, $user_id ) {
 	global $wpdb;
+	
 	$table_dienste = $wpdb->prefix . 'thv_dienste';
 	$table_settings = $wpdb->prefix . 'thv_settings';
 
@@ -420,6 +256,11 @@ function thwthv_shortcode_dienste() {
 		$output .= '<p><label>Ort: <input type="text" name="thwthv_ort" required></label></p>';
 		$output .= '<p><input type="submit" name="thwthv_submit_dienst" value="Eintragen" class="button"></p>';
 		$output .= '</form></div>';
+
+		$output .= '<div style="margin-bottom: 20px;">';
+		$output .= '<a href="' . esc_url( admin_url( 'admin-post.php?action=thwthv_print_view' ) ) . '" target="_blank" class="button" style="margin-right: 10px;">PDF / Druckansicht (Alle)</a>';
+		$output .= '<a href="' . esc_url( admin_url( 'admin-post.php?action=thwthv_print_view&mode=report' ) ) . '" target="_blank" class="button">Jahresbericht (Aktuell & Vorjahr)</a>';
+		$output .= '</div>';
 	}
 
 	if ( thwthv_isAdmin() ) {
@@ -580,7 +421,7 @@ function thwthv_shortcode_dienste() {
 					$output .= '<form method="post" action="#thv-dienst-' . $dienst->id . '" style="display:inline;">';
 					$output .= wp_nonce_field( 'thwthv_frontend_signup', 'thwthv_signup_nonce', true, false );
 					$output .= '<input type="hidden" name="thwthv_signup_dienst" value="' . $dienst->id . '">';
-					$output .= '<input type="submit" value="Eintragen" class="button" onclick="return confirm(\'Die Eintragung ist verbindlich. Soll die Eintragung vorgenommen werden?\')">';
+					$output .= '<input type="submit" value="In Warteliste eintragen" class="button" onclick="return confirm(\'Die Eintragung ist verbindlich. Soll die Eintragung vorgenommen werden?\')">';
 					$output .= '</form>';
 				}
 			} else {
@@ -599,3 +440,107 @@ function thwthv_shortcode_dienste() {
 	return $output;
 }
 add_shortcode( 'thv_dienste', 'thwthv_shortcode_dienste' );
+
+/**
+ * Generiert eine Druckansicht für die Dienste (PDF Export via Browser).
+ */
+function thwthv_handle_print_view() {
+	if ( ! thwthv_isAdmin() ) {
+		wp_die( 'Zugriff verweigert.' );
+	}
+
+	global $wpdb;
+	$table_dienste = $wpdb->prefix . 'thv_dienste';
+	$table_teilnehmer = $wpdb->prefix . 'thv_teilnehmer';
+
+	$mode = isset( $_GET['mode'] ) ? $_GET['mode'] : '';
+	$title = 'THV Dienstplan Übersicht';
+
+	if ( 'report' === $mode ) {
+		$year_current = current_time( 'Y' );
+		$year_last    = $year_current - 1;
+		$start        = $year_last . '-01-01';
+		$end          = $year_current . '-12-31';
+		$dienste      = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $table_dienste WHERE datum >= %s AND datum <= %s ORDER BY datum ASC", $start, $end ) );
+		$title        = "Jahresbericht $year_last & $year_current";
+	} else {
+		$dienste = $wpdb->get_results( "SELECT * FROM $table_dienste ORDER BY datum ASC" );
+	}
+
+	$role_labels = array(
+		'N'  => 'Warteliste',
+		'H'  => 'Helfer',
+		'KF' => 'Kraftfahrer',
+		'GF' => 'GrFü',
+	);
+	?>
+	<!DOCTYPE html>
+	<html lang="de">
+	<head>
+		<meta charset="UTF-8">
+		<title><?php echo esc_html( $title ); ?></title>
+		<style>
+			body { font-family: sans-serif; font-size: 14px; color: #333; max-width: 210mm; margin: 0 auto; }
+			h1 { text-align: center; margin-bottom: 30px; }
+			.dienst-block { border: 1px solid #ccc; margin-bottom: 20px; page-break-inside: avoid; }
+			.dienst-header { background-color: #f0f0f0; padding: 10px; font-weight: bold; border-bottom: 1px solid #ccc; }
+			.dienst-content { padding: 10px; }
+			table { width: 100%; border-collapse: collapse; }
+			th, td { text-align: left; padding: 5px; vertical-align: top; }
+			.role-label { font-weight: bold; display: inline-block; width: 100px; }
+			@media print {
+				.no-print { display: none; }
+				body { margin: 0; max-width: 100%; }
+				.dienst-block { border: 1px solid #000; }
+			}
+		</style>
+	</head>
+	<body>
+		<div class="no-print" style="padding: 20px; text-align: right; background: #eee; border-bottom: 1px solid #ccc; margin-bottom: 20px;">
+			<button onclick="window.print();" style="font-size: 16px; padding: 10px 20px; cursor: pointer;">🖨️ Seite drucken / Als PDF speichern</button>
+		</div>
+		<h1><?php echo esc_html( $title ); ?></h1>
+		<?php if ( $dienste ) : foreach ( $dienste as $dienst ) : 
+			$teilnehmer_rows = $wpdb->get_results( $wpdb->prepare( "SELECT user_id, rolle FROM $table_teilnehmer WHERE dienst_id = %d ORDER BY CASE rolle WHEN 'GF' THEN 1 WHEN 'KF' THEN 2 WHEN 'H' THEN 3 ELSE 4 END", $dienst->id ) );
+			?>
+			<div class="dienst-block">
+				<div class="dienst-header"><?php echo esc_html( date( 'd.m.Y', strtotime( $dienst->datum ) ) ); ?> | <?php echo esc_html( $dienst->uhrzeit ); ?> Uhr | <?php echo esc_html( $dienst->ort ); ?></div>
+				<div class="dienst-content">
+					<table><tr>
+						<td width="<?php echo ( 'report' === $mode ) ? '100%' : '60%'; ?>"><strong>Eingeteilt (GF, KF, H):</strong><br>
+							<?php 
+							$has = false; 
+							foreach ( $teilnehmer_rows as $r ) { 
+								if ( 'N' !== $r->rolle ) { 
+									$has = true; 
+									$u = get_userdata( $r->user_id ); 
+									echo '<div><span class="role-label">' . esc_html( isset( $role_labels[ $r->rolle ] ) ? $role_labels[ $r->rolle ] : $r->rolle ) . ':</span> ' . esc_html( $u ? $u->display_name : 'Unbekannt' ) . '</div>'; 
+								} 
+							} 
+							if ( ! $has ) echo '-'; 
+							?>
+						</td>
+						<?php if ( 'report' !== $mode ) : ?>
+						<td width="40%" style="border-left:1px solid #eee;padding-left:10px;"><strong>Warteliste:</strong><br>
+							<?php 
+							$has = false; 
+							foreach ( $teilnehmer_rows as $r ) { 
+								if ( 'N' === $r->rolle ) { 
+									$has = true; 
+									$u = get_userdata( $r->user_id ); 
+									echo '<div>' . esc_html( $u ? $u->display_name : 'Unbekannt' ) . '</div>'; 
+								} 
+							} 
+							if ( ! $has ) echo '-'; 
+							?>
+						</td>
+						<?php endif; ?>
+					</tr></table>
+				</div>
+			</div>
+		<?php endforeach; else : ?><p>Keine Dienste vorhanden.</p><?php endif; ?>
+	</body>
+	</html>
+	<?php
+}
+add_action( 'admin_post_thwthv_print_view', 'thwthv_handle_print_view' );
