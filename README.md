@@ -4,7 +4,7 @@ A WordPress plugin designed to manage services (Dienste), shifts, and participan
 
 ## Description
 
-This plugin provides a complete system for scheduling services and allowing WordPress users to sign up for them. It includes a backend for administration and a frontend shortcode for user interaction. It handles role assignments (Group Leader, Driver, Helper) and waitlists.
+This plugin provides a complete system for scheduling services and allowing WordPress users to sign up for them. It handles role assignments (Group Leader, Driver, Helper) and waitlists.
 
 ## Features
 
@@ -27,12 +27,11 @@ This plugin provides a complete system for scheduling services and allowing Word
 
 ## Usage
 
-### Configuration (Backend)
-1.  Navigate to **THV Dienste** in the WordPress Admin Dashboard.
-2.  **Add Services**: Use the form to add new services (Datum, Uhrzeit, Ort).
-3.  **Settings**:
-    *   **Notification Emails**: Add email addresses that should receive notifications about signups.
-    *   **THV Administrators**: Select WordPress users who should have administrative rights on the frontend (e.g., assigning roles, removing participants). *Note: This is separate from standard WordPress Admin roles.*
+### Configuration (Database)
+Configuration is managed directly in the `thv_settings` database table.
+
+*   **Notification Emails**: To receive signup notifications, insert a row with `type` = `email` and `value` = `address@example.com`.
+*   **THV Administrators**: WordPress Admins have full access. To grant access to other users, insert a row with `type` = `admin` and `value` = `USER_ID`.
 
 ### Frontend Integration
 Place the following shortcode on any page or post where you want the service list to appear:
