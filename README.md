@@ -27,11 +27,10 @@ This plugin provides a complete system for scheduling services and allowing Word
 
 ## Usage
 
-### Configuration (Database)
-Configuration is managed directly in the `thv_settings` database table.
-
-*   **Notification Emails**: To receive signup notifications, insert a row with `type` = `email` and `value` = `address@example.com`.
-*   **THV Administrators**: WordPress Admins have full access. To grant access to other users, insert a row with `type` = `admin` and `value` = `USER_ID`.
+### Configuration (Backend)
+1.  Navigate to **THV Einstellungen** in the WordPress Admin Dashboard.
+2.  **Notification Emails**: Add email addresses that should receive notifications about signups.
+3.  **THV Administrators**: Select WordPress users who should have administrative rights on the frontend (e.g., assigning roles, removing participants).
 
 ### Frontend Integration
 Place the following shortcode on any page or post where you want the service list to appear:

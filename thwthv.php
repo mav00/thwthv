@@ -76,6 +76,92 @@ function thwthv_update_db_check() {
 add_action( 'admin_init', 'thwthv_update_db_check' );
 
 /**
+ * Admin-Menü für Einstellungen registrieren.
+ */
+function thwthv_register_settings_page() {
+	add_menu_page(
+		'THV Einstellungen',
+		'THV Einstellungen',
+		'manage_options',
+		'thwthv-settings',
+		'thwthv_render_settings_page',
+		'dashicons-admin-generic'
+	);
+}
+add_action( 'admin_menu', 'thwthv_register_settings_page' );
+
+/**
+ * Seite für Einstellungen rendern.
+ */
+function thwthv_render_settings_page() {
+	global $wpdb;
+	$table_settings = $wpdb->prefix . 'thv_settings';
+
+	// Speichern
+	if ( isset( $_POST['thwthv_save_email'] ) && check_admin_referer( 'thwthv_settings_nonce' ) ) {
+		if ( is_email( $_POST['new_email'] ) ) {
+			$wpdb->insert( $table_settings, array( 'type' => 'email', 'value' => sanitize_email( $_POST['new_email'] ) ) );
+			echo '<div class="updated"><p>E-Mail gespeichert.</p></div>';
+		}
+	}
+	if ( isset( $_POST['thwthv_save_admin'] ) && check_admin_referer( 'thwthv_settings_nonce' ) ) {
+		$uid = intval( $_POST['new_admin_id'] );
+		if ( $uid > 0 ) {
+			$wpdb->insert( $table_settings, array( 'type' => 'admin', 'value' => $uid ) );
+			echo '<div class="updated"><p>Admin hinzugefügt.</p></div>';
+		}
+	}
+
+	// Löschen
+	if ( isset( $_GET['action'] ) && 'delete' === $_GET['action'] && isset( $_GET['id'] ) && check_admin_referer( 'delete_setting_' . $_GET['id'] ) ) {
+		$wpdb->delete( $table_settings, array( 'id' => intval( $_GET['id'] ) ) );
+		echo '<div class="updated"><p>Eintrag gelöscht.</p></div>';
+	}
+
+	$settings = $wpdb->get_results( "SELECT * FROM $table_settings" );
+	$emails = array_filter( $settings, function($s) { return 'email' === $s->type; } );
+	$admins = array_filter( $settings, function($s) { return 'admin' === $s->type; } );
+	$users  = get_users( array( 'orderby' => 'display_name' ) );
+	?>
+	<div class="wrap">
+		<h1>THV Einstellungen</h1>
+		<div style="display:flex; gap:20px; flex-wrap:wrap;">
+			<div style="flex:1; min-width:300px; background:#fff; padding:20px; border:1px solid #ccc;">
+				<h2>Benachrichtigungs-E-Mails</h2>
+				<form method="post">
+					<?php wp_nonce_field( 'thwthv_settings_nonce' ); ?>
+					<p><input type="email" name="new_email" placeholder="E-Mail" required class="regular-text"> 
+					<input type="submit" name="thwthv_save_email" value="Hinzufügen" class="button button-primary"></p>
+				</form>
+				<ul>
+					<?php foreach ( $emails as $e ) : ?>
+						<li><?php echo esc_html( $e->value ); ?> <a href="<?php echo wp_nonce_url( admin_url( 'admin.php?page=thwthv-settings&action=delete&id=' . $e->id ), 'delete_setting_' . $e->id ); ?>" style="color:red;text-decoration:none;">&times;</a></li>
+					<?php endforeach; ?>
+				</ul>
+			</div>
+			<div style="flex:1; min-width:300px; background:#fff; padding:20px; border:1px solid #ccc;">
+				<h2>THV Administratoren (Frontend)</h2>
+				<form method="post">
+					<?php wp_nonce_field( 'thwthv_settings_nonce' ); ?>
+					<p><select name="new_admin_id">
+						<?php foreach ( $users as $u ) : ?>
+							<option value="<?php echo $u->ID; ?>"><?php echo esc_html( $u->display_name ); ?></option>
+						<?php endforeach; ?>
+					</select> 
+					<input type="submit" name="thwthv_save_admin" value="Hinzufügen" class="button button-primary"></p>
+				</form>
+				<ul>
+					<?php foreach ( $admins as $a ) : $u = get_userdata( $a->value ); ?>
+						<li><?php echo esc_html( $u ? $u->display_name : 'ID ' . $a->value ); ?> <a href="<?php echo wp_nonce_url( admin_url( 'admin.php?page=thwthv-settings&action=delete&id=' . $a->id ), 'delete_setting_' . $a->id ); ?>" style="color:red;text-decoration:none;">&times;</a></li>
+					<?php endforeach; ?>
+				</ul>
+			</div>
+		</div>
+	</div>
+	<?php
+}
+
+/**
  * Prüft, ob der aktuelle Benutzer Admin ist.
  */
 function thwthv_isAdmin() {
